@@ -45,8 +45,20 @@ mix.then(() => {
 
 function publishAseets () {
   const publicDir = resolve(__dirname, './public')
+  const sourcePath = join(publicDir, 'build', 'dist')
+  const targetPath = join(publicDir, 'dist')
 
-  removeSync(join(publicDir, 'dist'))
-  copySync(join(publicDir, 'build', 'dist'), join(publicDir, 'dist'))
-  removeSync(join(publicDir, 'build'))
+  try {
+    removeSync(targetPath)
+
+    if (require('fs').existsSync(sourcePath)) {
+      copySync(sourcePath, targetPath)
+    } else {
+      console.warn(`⚠️  No se encontró ${sourcePath}, omitiendo copia.`)
+    }
+
+    removeSync(join(publicDir, 'build'))
+  } catch (err) {
+    console.error('❌ Error al publicar los assets:', err)
+  }
 }

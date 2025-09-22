@@ -15,15 +15,16 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
     use Notifiable,
         HasFactory;
 
+    protected $connection = 'sqlsrv_db1';
+    protected $table = 'users';
+
     /**
      * The attributes that are mass assignable.
      *
      * @var array
      */
     protected $fillable = [
-        'name',
-        'email',
-        'password',
+        'name', 'email', 'password', 'type'
     ];
 
     /**
@@ -53,6 +54,14 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
     protected $appends = [
         'photo_url',
     ];
+
+    const TYPE_ADMIN = 1;
+    const TYPE_GUEST = 2;
+
+    public function isAdmin()
+    {
+        return $this->type === self::TYPE_ADMIN;
+    }
 
     /**
      * Get the profile photo URL attribute.

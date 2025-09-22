@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2196F3">
+    <title>Gestión de Votantes</title>
+    <link rel="manifest" href="manifest.json">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="container h-100 d-flex align-items-center justify-content-center">
+                <div class="card login-card">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-person-check-fill text-primary" style="font-size: 4rem;"></i>
+                            <h2 class="mt-3">Gestión de Votantes</h2>
+                            <p class="text-muted">Iniciar Sesión</p>
+                        </div>
+                        <form id="loginForm">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Correo electrónico</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                    <input type="email" class="form-control" id="email" autocomplete="email" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Contraseña</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                    <input type="password" class="form-control" id="password" autocomplete="current-password" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2">
+                                <span id="loginBtnText">Iniciar Sesión</span>
+                                <span id="loginLoader" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main App -->
+        <div id="mainApp" class="screen">
+            <!-- Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+                <div class="container-fluid">
+                    <a class="navbar-brand" href="#">
+                        <i class="bi bi-person-check-fill"></i> Votantes
+                    </a>
+                    <span class="navbar-text text-white" id="userName"></span>
+                    <button class="btn btn-outline-light btn-sm" onclick="app.logout()">
+                        <i class="bi bi-box-arrow-right"></i> Salir
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Tabs -->
+            <ul class="nav nav-tabs px-3 pt-2">
+                <li class="nav-item">
+                    <a class="nav-link active" data-tab="votantes" onclick="app.switchTab('votantes')">
+                        <i class="bi bi-people"></i> Votantes
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="agregar" onclick="app.switchTab('agregar')">
+                        <i class="bi bi-person-plus"></i> Agregar
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-tab="estadisticas" onclick="app.switchTab('estadisticas')">
+                        <i class="bi bi-bar-chart"></i> Estadísticas
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Tab Content -->
+            <div class="tab-content p-3">
+                <!-- Votantes Tab -->
+                <div class="tab-pane active" id="votantesTab">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="searchInput" placeholder="Buscar por cédula o teléfono">
+                                <button class="btn btn-primary" onclick="app.searchVotantes()">Buscar</button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-success w-100" onclick="app.switchTab('agregar')">
+                                <i class="bi bi-person-plus"></i> Agregar Votante
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="votantesList" class="votantes-list">
+                        <!-- Lista de votantes se carga aquí -->
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button id="loadMoreBtn" class="btn btn-outline-primary d-none" onclick="app.loadMore()">
+                            Cargar más
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Agregar Tab -->
+                <div class="tab-pane" id="agregarTab">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Buscar en Padrón</h5>
+                            <form id="buscarPadronForm">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <input type="text" class="form-control" id="cedulaBuscar" placeholder="Ingrese cédula (11 dígitos)" maxlength="11" required>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button type="submit" class="btn btn-primary w-100">
+                                            <i class="bi bi-search"></i> Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <div id="padronResult" class="mt-3"></div>
+
+                            <form id="agregarVotanteForm" class="d-none mt-3">
+                                <h5>Información Adicional</h5>
+                                <div class="mb-3">
+                                    <label class="form-label">Colegio Electoral</label>
+                                    <select class="form-select" id="colegioSelect">
+                                        <option value="">Seleccione un colegio</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Mesa de Votación</label>
+                                    <input type="text" class="form-control" id="mesaInput" placeholder="Ej: Mesa 1">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Teléfono</label>
+                                    <input type="tel" class="form-control" id="telefonoInput" placeholder="809-555-0000">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Dirección</label>
+                                    <textarea class="form-control" id="direccionInput" rows="2"></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Observaciones</label>
+                                    <textarea class="form-control" id="observacionesInput" rows="3"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-success w-100">
+                                    <i class="bi bi-save"></i> Guardar Votante
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Estadísticas Tab -->
+                <div class="tab-pane" id="estadisticasTab">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="stat-card bg-primary text-white">
+                                <div class="stat-icon"><i class="bi bi-people"></i></div>
+                                <div class="stat-value" id="statTotal">0</div>
+                                <div class="stat-label">Total Votantes</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card bg-success text-white">
+                                <div class="stat-icon"><i class="bi bi-check-circle"></i></div>
+                                <div class="stat-value" id="statActivos">0</div>
+                                <div class="stat-label">Activos</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card bg-danger text-white">
+                                <div class="stat-icon"><i class="bi bi-x-circle"></i></div>
+                                <div class="stat-value" id="statInactivos">0</div>
+                                <div class="stat-label">Inactivos</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-body">
+                            <h5 class="card-title">Distribución por Colegios</h5>
+                            <div id="colegiosChart"></div>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-3">
+                        <button class="btn btn-primary" onclick="app.exportarVotantes()">
+                            <i class="bi bi-download"></i> Exportar Lista
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+        </div>
+
+        <!-- Toast Container -->
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="toast" class="toast" role="alert">
+                <div class="toast-body" id="toastMessage"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Registrar Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('service-worker.js');
+        }
+    </script>
+</body>
+</html>

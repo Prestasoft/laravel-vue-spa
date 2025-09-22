@@ -1,0 +1,25 @@
+{
+    "name": "Sistema de Gestión de Votantes",
+    "short_name": "Votantes",
+    "description": "Aplicación para gestión de votantes por dirigentes de partidos políticos",
+    "start_url": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#2196F3",
+    "background_color": "#ffffff",
+    "icons": [
+        {
+            "src": "icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ],
+    "categories": ["productivity", "utilities"],
+    "lang": "es",
+    "dir": "ltr"
+}

@@ -3,7 +3,7 @@ function page (path) {
 }
 
 export default [
-  { path: '/', name: 'welcome', component: page('welcome.vue') },
+  { path: '/', name: 'welcome', component: page('auth/login.vue') },
 
   { path: '/login', name: 'login', component: page('auth/login.vue') },
   { path: '/register', name: 'register', component: page('auth/register.vue') },
@@ -13,6 +13,8 @@ export default [
   { path: '/email/resend', name: 'verification.resend', component: page('auth/verification/resend.vue') },
 
   { path: '/home', name: 'home', component: page('home.vue') },
+  { path: '/users', name: 'users', component: page('users.vue') },
+  { path: '/historials', name: 'historials', component: page('historials.vue') },
   {
     path: '/settings',
     component: page('settings/index.vue'),

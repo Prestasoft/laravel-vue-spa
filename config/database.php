@@ -74,29 +74,32 @@ return [
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
-            'schema' => 'public',
+            'search_path' => 'public',
             'sslmode' => 'prefer',
         ],
 
-        'sqlsrv' => [
+        'sqlsrv_db1' => [
             'driver' => 'sqlsrv',
-            'url' => env('DATABASE_URL'),
-            'host' => env('DB_HOST', 'localhost'),
-            'port' => env('DB_PORT', '1433'),
-            'database' => env('DB_DATABASE', 'forge'),
-            'username' => env('DB_USERNAME', 'forge'),
-            'password' => env('DB_PASSWORD', ''),
+            'host' => env('DB1_HOST', 'localhost'),
+            'port' => env('DB1_PORT', '1433'),
+            'database' => env('DB1_DATABASE', 'forge'),
+            'username' => env('DB1_USERNAME', 'forge'),
+            'password' => env('DB1_PASSWORD', ''),
             'charset' => 'utf8',
             'prefix' => '',
             'prefix_indexes' => true,
         ],
 
-        'dusk' => [
-            'driver' => 'sqlite',
-            'url' => env('DATABASE_URL'),
-            'database' => database_path('dusk.sqlite'),
+        'sqlsrv_db2' => [
+            'driver' => 'sqlsrv',
+            'host' => env('DB2_HOST', 'localhost'),
+            'port' => env('DB2_PORT', '1433'),
+            'database' => env('DB2_DATABASE', 'forge'),
+            'username' => env('DB2_USERNAME', 'forge'),
+            'password' => env('DB2_PASSWORD', ''),
+            'charset' => 'utf8',
             'prefix' => '',
-            'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+            'prefix_indexes' => true,
         ],
 
     ],
@@ -137,7 +140,7 @@ return [
         'default' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null),
+            'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
         ],
@@ -145,7 +148,7 @@ return [
         'cache' => [
             'url' => env('REDIS_URL'),
             'host' => env('REDIS_HOST', '127.0.0.1'),
-            'password' => env('REDIS_PASSWORD', null),
+            'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_CACHE_DB', '1'),
         ],

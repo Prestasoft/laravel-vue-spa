@@ -28,10 +28,6 @@
               <checkbox v-model="remember" name="remember">
                 {{ $t('remember_me') }}
               </checkbox>
-
-              <router-link :to="{ name: 'password.request' }" class="small ms-auto my-auto">
-                {{ $t('forgot_password') }}
-              </router-link>
             </div>
           </div>
 
