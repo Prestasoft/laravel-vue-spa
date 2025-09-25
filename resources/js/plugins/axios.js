@@ -4,6 +4,9 @@ import store from '~/store'
 import router from '~/router'
 import i18n from '~/plugins/i18n'
 
+// Configure axios base URL for production
+axios.defaults.baseURL = '/api'
+
 // Request interceptor
 axios.interceptors.request.use(request => {
   const token = store.getters['auth/token']

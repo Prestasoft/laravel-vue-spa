@@ -41,6 +41,10 @@ Route::group(['middleware' => 'auth:api'], function () {
     Route::put('users/{user}', [UserController::class, 'update']);
     Route::delete('users/{user}', [UserController::class, 'destroy']);
     Route::post('users/{user}/change-password', [UserController::class, 'changePassword']);
+    Route::post('users/{user}/permissions', [UserController::class, 'updatePermissions']);
+    Route::post('users/search-cedula', [UserController::class, 'searchByCedula']);
+    Route::get('users/photo/{user}', [UserController::class, 'getPhoto']);
+    Route::get('users/photo-temp/{cedula}', [UserController::class, 'getPhotoTemp']);
 
     Route::get('search-logs', [LogController::class, 'index']);
 
@@ -48,8 +52,11 @@ Route::group(['middleware' => 'auth:api'], function () {
     Route::get('votantes', [VotanteController::class, 'index']);
     Route::post('votantes', [VotanteController::class, 'store']);
     Route::get('votantes/buscar/{cedula}', [VotanteController::class, 'buscar']);
+    Route::get('votantes/foto/{cedula}', [VotanteController::class, 'obtenerFoto']);
     Route::get('votantes/estadisticas', [VotanteController::class, 'estadisticas']);
+    Route::get('votantes/dirigentes', [VotanteController::class, 'dirigentes']);
     Route::get('votantes/exportar', [VotanteController::class, 'exportar']);
+    Route::get('votantes/mapa', [VotanteController::class, 'obtenerParaMapa']);
     Route::get('votantes/{id}', [VotanteController::class, 'show']);
     Route::put('votantes/{id}', [VotanteController::class, 'update']);
     Route::delete('votantes/{id}', [VotanteController::class, 'destroy']);

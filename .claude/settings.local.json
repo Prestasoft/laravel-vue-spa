@@ -1,12 +1,28 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php artisan make:migration:*)",
+      "Bash(Select-Object Name, LastWriteTime)",
+      "Bash(php:*)",
+      "Bash(del \"C:\\inetpub\\wwwroot\\app\\test_db.php\")",
+      "Bash(npm run build-win:*)",
+      "Bash(where php)",
+      "Bash(iisreset:*)",
+      "Bash(npm run watch:*)",
+      "Bash(npm run watch-win:*)",
+      "Bash(npm run dev:*)",
+      "Bash(python:*)",
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "Bash(dir:*)",
+      "Bash(powershell:*)",
+      "Bash(npm run production:*)",
+      "Bash(cat:*)",
+      "Bash(del test_padron.php)",
+      "Bash(del \"C:\\inetpub\\wwwroot\\app\\test_padron.php\")",
+      "Bash(Select-String \"spa.blade.php\")",
       "Bash(flutter create:*)",
-      "Bash(mkdir:*)",
-      "Bash(php artisan serve:*)",
-      "Bash(copy:*)",
-      "Bash(php artisan:*)"
+      "Bash(flutter pub:*)",
+      "Bash(where flutter)"
     ],
     "deny": [],
     "ask": []

@@ -21,6 +21,10 @@ class Votante extends Model
         'mesa',
         'telefono',
         'direccion',
+        'latitud',
+        'longitud',
+        'direccion_gps',
+        'gps_capturado_en',
         'observaciones',
         'fecha_registro',
         'activo'
@@ -29,6 +33,9 @@ class Votante extends Model
     protected $casts = [
         'activo' => 'boolean',
         'fecha_registro' => 'datetime',
+        'gps_capturado_en' => 'datetime',
+        'latitud' => 'float',
+        'longitud' => 'float'
     ];
 
     protected $appends = ['padron_data', 'colegio_nombre'];
@@ -50,17 +57,22 @@ class Votante extends Model
             ->leftJoin('Nacionalidad as nac', 'p.IdNacionalidad', '=', 'nac.ID')
             ->leftJoin('Sexo as sex', 'p.IdSexo', '=', 'sex.IdSexo')
             ->leftJoin('EstadoCivil as ec', 'p.IdEstadoCivil', '=', 'ec.Id')
+            ->leftJoin('Colegio as col', 'p.IdColegio', '=', 'col.IDColegio')
+            ->leftJoin('Municipio as mun', 'p.IdMunicipio', '=', 'mun.ID')
+            ->leftJoin('Provincia as pro', 'mun.IDProvincia', '=', 'pro.ID')
             ->where('p.Cedula', $this->cedula)
             ->select([
                 'p.Cedula',
-                'p.Nombres',
-                'p.Apellido1',
-                'p.Apellido2',
+                'p.nombres',
+                'p.apellido1',
+                'p.apellido2',
                 'p.FechaNacimiento',
-                'p.LugarNacimiento',
                 'nac.Descripcion as nacionalidad',
                 'sex.Descripcion as sexo',
                 'ec.Descripcion as estado_civil',
+                'col.Descripcion as colegio_nombre',
+                'mun.Descripcion as municipio',
+                'pro.Descripcion as provincia',
             ])
             ->first();
 
@@ -77,6 +89,21 @@ class Votante extends Model
             ->value('Descripcion');
 
         return $colegio;
+    }
+
+    public function getFotoDataAttribute()
+    {
+        try {
+            $foto = \DB::connection('sqlsrv_db2')
+                ->table('FOTOS_PRM_PRM')
+                ->where('Cedula', $this->cedula)
+                ->select('Imagen')
+                ->first();
+
+            return $foto;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     public function scopeDelDirigente($query, $dirigenteId)

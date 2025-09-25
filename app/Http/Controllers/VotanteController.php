@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Votante;
 use App\Models\GestionVotante;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -15,10 +16,36 @@ class VotanteController extends Controller
         $user = auth()->user();
         $query = Votante::with(['gestiones' => function($q) {
             $q->orderBy('fecha', 'desc')->limit(1);
-        }]);
+        }, 'dirigente:id,name,email']);
 
-        if (!$user->isAdmin()) {
+        // Aplicar filtros según el tipo de usuario
+        if ($user->isAdmin()) {
+            // Admin puede ver todos y filtrar por dirigente específico
+            if ($request->has('dirigente_id') && $request->dirigente_id !== '') {
+                if ($request->dirigente_id === 'null') {
+                    // Mostrar votantes sin dirigente asignado
+                    $query->whereNull('dirigente_id');
+                } else {
+                    $query->delDirigente($request->dirigente_id);
+                }
+            }
+        } elseif ($user->isCandidato()) {
+            // Candidatos ven sus propios votantes y los de sus coordinadores
+            $coordinadoresIds = User::where('candidato_id', $user->id)
+                                 ->where('type', User::TYPE_COORDINADOR)
+                                 ->pluck('id')
+                                 ->toArray();
+
+            // Incluir también los votantes del candidato mismo
+            $coordinadoresIds[] = $user->id;
+
+            $query->whereIn('dirigente_id', $coordinadoresIds);
+        } elseif ($user->isCoordinador()) {
+            // Coordinadores solo ven sus votantes
             $query->delDirigente($user->id);
+        } else {
+            // Invitados no ven votantes
+            $query->whereRaw('1 = 0');
         }
 
         if ($request->has('colegio_id')) {
@@ -49,6 +76,12 @@ class VotanteController extends Controller
 
         $votantes = $query->paginate($request->get('per_page', 20));
 
+        // Limpiar datos para evitar problemas de codificación
+        $votantes->getCollection()->transform(function ($votante) {
+            // No incluir foto_data automáticamente para evitar problemas de encoding
+            return $votante;
+        });
+
         return response()->json($votantes);
     }
 
@@ -60,6 +93,9 @@ class VotanteController extends Controller
             'mesa' => 'nullable|string|max:10',
             'telefono' => 'nullable|string|max:20',
             'direccion' => 'nullable|string',
+            'latitud' => 'nullable|numeric|between:-90,90',
+            'longitud' => 'nullable|numeric|between:-180,180',
+            'direccion_gps' => 'nullable|string',
             'observaciones' => 'nullable|string'
         ]);
 
@@ -86,7 +122,7 @@ class VotanteController extends Controller
             ], 404);
         }
 
-        $votante = Votante::create([
+        $data = [
             'cedula' => $request->cedula,
             'dirigente_id' => $user->id,
             'colegio_id' => $request->colegio_id,
@@ -95,7 +131,17 @@ class VotanteController extends Controller
             'direccion' => $request->direccion,
             'observaciones' => $request->observaciones,
             'fecha_registro' => Carbon::now()
-        ]);
+        ];
+
+        // Agregar datos GPS si están presentes
+        if ($request->latitud && $request->longitud) {
+            $data['latitud'] = $request->latitud;
+            $data['longitud'] = $request->longitud;
+            $data['direccion_gps'] = $request->direccion_gps;
+            $data['gps_capturado_en'] = Carbon::now();
+        }
+
+        $votante = Votante::create($data);
 
         return response()->json([
             'message' => 'Votante agregado exitosamente',
@@ -123,20 +169,48 @@ class VotanteController extends Controller
             'mesa' => 'nullable|string|max:10',
             'telefono' => 'nullable|string|max:20',
             'direccion' => 'nullable|string',
+            'latitud' => 'nullable|numeric|between:-90,90',
+            'longitud' => 'nullable|numeric|between:-180,180',
+            'direccion_gps' => 'nullable|string',
             'observaciones' => 'nullable|string',
             'activo' => 'boolean'
         ]);
 
         $user = auth()->user();
 
-        $votante = Votante::when(!$user->isAdmin(), function($q) use ($user) {
-            $q->delDirigente($user->id);
-        })->findOrFail($id);
+        // Aplicar filtros según el tipo de usuario
+        if ($user->isAdmin()) {
+            $votante = Votante::findOrFail($id);
+        } elseif ($user->isCandidato()) {
+            // Candidatos pueden editar votantes suyos y de sus coordinadores
+            $coordinadoresIds = User::where('candidato_id', $user->id)
+                                 ->where('type', User::TYPE_COORDINADOR)
+                                 ->pluck('id')
+                                 ->toArray();
+            $coordinadoresIds[] = $user->id;
 
-        $votante->update($request->only([
+            $votante = Votante::whereIn('dirigente_id', $coordinadoresIds)
+                              ->findOrFail($id);
+        } elseif ($user->isCoordinador()) {
+            $votante = Votante::delDirigente($user->id)->findOrFail($id);
+        } else {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $dataToUpdate = $request->only([
             'colegio_id', 'mesa', 'telefono',
             'direccion', 'observaciones', 'activo'
-        ]));
+        ]);
+
+        // Actualizar GPS si se proporcionan coordenadas
+        if ($request->has('latitud') && $request->has('longitud')) {
+            $dataToUpdate['latitud'] = $request->latitud;
+            $dataToUpdate['longitud'] = $request->longitud;
+            $dataToUpdate['direccion_gps'] = $request->direccion_gps;
+            $dataToUpdate['gps_capturado_en'] = Carbon::now();
+        }
+
+        $votante->update($dataToUpdate);
 
         return response()->json([
             'message' => 'Votante actualizado exitosamente',
@@ -148,9 +222,24 @@ class VotanteController extends Controller
     {
         $user = auth()->user();
 
-        $votante = Votante::when(!$user->isAdmin(), function($q) use ($user) {
-            $q->delDirigente($user->id);
-        })->findOrFail($id);
+        // Aplicar filtros según el tipo de usuario
+        if ($user->isAdmin()) {
+            $votante = Votante::findOrFail($id);
+        } elseif ($user->isCandidato()) {
+            // Candidatos pueden eliminar votantes suyos y de sus coordinadores
+            $coordinadoresIds = User::where('candidato_id', $user->id)
+                                 ->where('type', User::TYPE_COORDINADOR)
+                                 ->pluck('id')
+                                 ->toArray();
+            $coordinadoresIds[] = $user->id;
+
+            $votante = Votante::whereIn('dirigente_id', $coordinadoresIds)
+                              ->findOrFail($id);
+        } elseif ($user->isCoordinador()) {
+            $votante = Votante::delDirigente($user->id)->findOrFail($id);
+        } else {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
 
         $votante->delete();
 
@@ -177,6 +266,7 @@ class VotanteController extends Controller
                 'ec.Descripcion as estado_civil',
                 'co.Descripcion as colegio',
                 'co.IDColegio as colegio_id',
+                'p.CodigoColegio as mesa', // Agregamos el CodigoColegio como mesa
                 'mu.Descripcion as municipio',
                 'pro.Descripcion as provincia',
             ])
@@ -189,14 +279,38 @@ class VotanteController extends Controller
         }
 
         $user = auth()->user();
+
+        // Verificar si el usuario actual ya tiene este votante
         $yaRegistrado = Votante::where('cedula', $cedula)
             ->where('dirigente_id', $user->id)
             ->exists();
 
-        return response()->json([
+        // Verificar si otro usuario ya tiene este votante registrado
+        $registradoPorOtro = Votante::where('cedula', $cedula)
+            ->where('dirigente_id', '!=', $user->id)
+            ->with('dirigente:id,name,type')
+            ->first();
+
+        $responseData = [
             'padron' => $padron,
             'ya_registrado' => $yaRegistrado
-        ]);
+        ];
+
+        if ($registradoPorOtro) {
+            $tipoUsuario = $registradoPorOtro->dirigente->type == 4 ? 'Candidato' :
+                          ($registradoPorOtro->dirigente->type == 3 ? 'Coordinador' : 'Usuario');
+
+            $responseData['registrado_por_otro'] = [
+                'existe' => true,
+                'usuario' => $registradoPorOtro->dirigente->name,
+                'tipo' => $tipoUsuario,
+                'fecha_registro' => $registradoPorOtro->fecha_registro
+            ];
+        } else {
+            $responseData['registrado_por_otro'] = ['existe' => false];
+        }
+
+        return response()->json($responseData);
     }
 
     public function estadisticas(Request $request)
@@ -251,6 +365,63 @@ class VotanteController extends Controller
         ]);
     }
 
+    public function dirigentes()
+    {
+        $user = auth()->user();
+
+        if ($user->isAdmin()) {
+            // Admin ve todos los coordinadores
+            $coordinadores = User::where('type', User::TYPE_COORDINADOR)
+                ->withCount('votantes')
+                ->select('id', 'name', 'email')
+                ->orderBy('name')
+                ->get();
+        } elseif ($user->isCandidato()) {
+            // Candidato ve solo sus coordinadores
+            $coordinadores = User::where('type', User::TYPE_COORDINADOR)
+                ->where('candidato_id', $user->id)
+                ->withCount('votantes')
+                ->select('id', 'name', 'email')
+                ->orderBy('name')
+                ->get();
+        } else {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        return response()->json($coordinadores);
+    }
+
+    public function obtenerFoto($cedula)
+    {
+        try {
+            $foto = DB::connection('sqlsrv_db2')
+                ->table('FOTOS_PRM_PRM')
+                ->where('Cedula', $cedula)
+                ->select('Imagen')
+                ->first();
+
+            if ($foto && $foto->Imagen) {
+                // Asegurar que la imagen esté correctamente codificada
+                $imagenBase64 = base64_encode($foto->Imagen);
+
+                return response()->json([
+                    'success' => true,
+                    'imagen' => $imagenBase64
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto no encontrada'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al obtener foto'
+            ]);
+        }
+    }
+
     public function agregarGestion(Request $request, $id)
     {
         $request->validate([
@@ -278,6 +449,120 @@ class VotanteController extends Controller
         ], 201);
     }
 
+    public function obtenerParaMapa(Request $request)
+    {
+        $user = auth()->user();
+        $query = Votante::with('dirigente:id,name,type')
+            ->whereNotNull('latitud')
+            ->whereNotNull('longitud');
+
+        // Aplicar filtros según el tipo de usuario
+        if ($user->isAdmin()) {
+            // Admin puede ver todos y filtrar por dirigente específico
+            if ($request->has('dirigente_id') && $request->dirigente_id !== '') {
+                $query->where('dirigente_id', $request->dirigente_id);
+            }
+        } elseif ($user->isCandidato()) {
+            // Candidatos ven sus propios votantes y los de sus coordinadores
+            $coordinadoresIds = User::where('candidato_id', $user->id)
+                                 ->where('type', User::TYPE_COORDINADOR)
+                                 ->pluck('id')
+                                 ->toArray();
+
+            // Incluir también los votantes del candidato mismo
+            $coordinadoresIds[] = $user->id;
+
+            $query->whereIn('dirigente_id', $coordinadoresIds);
+
+            // Permitir filtro por coordinador específico
+            if ($request->has('dirigente_id') && $request->dirigente_id !== '') {
+                $query->where('dirigente_id', $request->dirigente_id);
+            }
+        } elseif ($user->isCoordinador()) {
+            // Coordinadores solo ven sus votantes
+            $query->where('dirigente_id', $user->id);
+        } else {
+            // Invitados no ven votantes
+            $query->whereRaw('1 = 0');
+        }
+
+        // Filtros adicionales
+        if ($request->has('colegio_id') && $request->colegio_id !== '') {
+            $query->where('colegio_id', $request->colegio_id);
+        }
+
+        $query->activos();
+
+        $votantes = $query->get();
+
+        // Preparar datos para el mapa
+        $votantesData = $votantes->map(function($votante) {
+            $padron = $votante->padron_data;
+
+            // Obtener foto
+            $foto = null;
+            try {
+                $fotoData = DB::connection('sqlsrv_db2')
+                    ->table('FOTOS_PRM_PRM')
+                    ->where('Cedula', $votante->cedula)
+                    ->select('Imagen')
+                    ->first();
+
+                if ($fotoData && $fotoData->Imagen) {
+                    $foto = base64_encode($fotoData->Imagen);
+                }
+            } catch (\Exception $e) {
+                // Silenciar error
+            }
+
+            return [
+                'id' => $votante->id,
+                'cedula' => $votante->cedula,
+                'nombre_completo' => $padron ? trim("{$padron->nombres} {$padron->apellido1} {$padron->apellido2}") : 'Sin nombre',
+                'telefono' => $votante->telefono,
+                'latitud' => $votante->latitud,
+                'longitud' => $votante->longitud,
+                'direccion' => $votante->direccion,
+                'direccion_gps' => $votante->direccion_gps,
+                'colegio_id' => $votante->colegio_id,
+                'colegio_nombre' => $votante->colegio_nombre,
+                'mesa' => $votante->mesa,
+                'observaciones' => $votante->observaciones,
+                'fecha_registro' => $votante->fecha_registro,
+                'gps_capturado_en' => $votante->gps_capturado_en,
+                'dirigente_id' => $votante->dirigente_id,
+                'dirigente_nombre' => $votante->dirigente ? $votante->dirigente->name : 'Sin asignar',
+                'dirigente_tipo' => $votante->dirigente ? $votante->dirigente->type : null,
+                'foto_base64' => $foto
+            ];
+        });
+
+        // Contar totales
+        $totalQuery = Votante::query();
+
+        if ($user->isAdmin()) {
+            // Admin ve todos
+        } elseif ($user->isCandidato()) {
+            $coordinadoresIds = User::where('candidato_id', $user->id)
+                                 ->where('type', User::TYPE_COORDINADOR)
+                                 ->pluck('id')
+                                 ->toArray();
+            $coordinadoresIds[] = $user->id;
+            $totalQuery->whereIn('dirigente_id', $coordinadoresIds);
+        } elseif ($user->isCoordinador()) {
+            $totalQuery->where('dirigente_id', $user->id);
+        }
+
+        $totalVotantes = $totalQuery->activos()->count();
+        $conGps = $totalQuery->whereNotNull('latitud')->whereNotNull('longitud')->count();
+
+        return response()->json([
+            'votantes' => $votantesData,
+            'total' => $totalVotantes,
+            'con_gps' => $conGps
+        ]);
+    }
+
     public function exportar(Request $request)
     {
         $user = auth()->user();
@@ -301,8 +586,8 @@ class VotanteController extends Controller
             $csv .= sprintf(
                 "%s,%s,%s,%s,%s,%s,%s,%s\n",
                 $votante->cedula,
-                $padron->Nombres ?? '',
-                ($padron->Apellido1 ?? '') . ' ' . ($padron->Apellido2 ?? ''),
+                $padron->nombres ?? '',
+                ($padron->apellido1 ?? '') . ' ' . ($padron->apellido2 ?? ''),
                 $votante->telefono ?? '',
                 $votante->colegio_nombre ?? '',
                 $votante->mesa ?? '',

@@ -1,6 +1,6 @@
 // Configuración de la aplicación
 const API_URL = window.location.hostname === 'localhost'
-    ? 'http://localhost/app/api'
+    ? 'http://localhost/api'
     : 'http://198.100.150.217/api';  // Tu API real funcionando
 
 class VotantesApp {
@@ -92,7 +92,7 @@ class VotantesApp {
             const data = await response.json();
 
             if (response.ok) {
-                this.token = data.access_token;
+                this.token = data.token || data.access_token;
                 this.user = data.user;
                 localStorage.setItem('token', this.token);
                 this.showMainApp();

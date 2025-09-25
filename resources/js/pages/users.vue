@@ -48,8 +48,11 @@
                 <td>{{ user.name }}</td>
                 <td>{{ user.email }}</td>
                 <td>
-                  <span class="badge" :class="parseInt(user.type) === 1 ? 'bg-primary' : 'bg-secondary'">
-                    {{ parseInt(user.type) === 1 ? 'Administrador' : 'Invitado' }}
+                  <span class="badge" :class="getUserTypeBadgeClass(user.type)">
+                    <i class="bi" :class="getUserTypeIcon(user.type)" ></i> {{ getUserTypeName(user.type) }}
+                  </span>
+                  <span v-if="user.type == 3" class="ms-2 text-muted">
+                    <small>({{ user.votantes_count || 0 }} votantes)</small>
                   </span>
                 </td>
                 <td>
@@ -66,6 +69,14 @@
                     title="Cambiar contraseña"
                   >
                     <fa icon="key" fixed-width />
+                  </button>
+                  <button
+                    v-if="currentUserType === 1"
+                    class="btn btn-sm btn-outline-info me-1"
+                    @click="showPermissionsModal(user)"
+                    title="Editar permisos"
+                  >
+                    <fa icon="shield-alt" fixed-width />
                   </button>
                   <button
                     class="btn btn-sm btn-outline-danger"
@@ -153,6 +164,43 @@
           </div>
           <div class="modal-body">
             <form @submit.prevent="isEditMode ? updateUser() : createUser()">
+              <div class="mb-3" v-if="!isEditMode">
+                <label for="cedula" class="form-label">Cédula</label>
+                <div class="input-group">
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="cedula"
+                    v-model="form.cedula"
+                    placeholder="00000000000"
+                    maxlength="11"
+                    @input="form.cedula = form.cedula.replace(/[^0-9]/g, '')"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    @click="buscarPorCedula"
+                    :disabled="!form.cedula || form.cedula.length < 11"
+                  >
+                    <fa icon="search" /> Buscar
+                  </button>
+                </div>
+                <small v-if="cedulaMessage" :class="cedulaMessageClass">
+                  {{ cedulaMessage }}
+                </small>
+              </div>
+
+              <div v-show="fotoPreview" class="mb-3 text-center">
+                <img
+                  :src="fotoPreview"
+                  alt="Foto del padrón"
+                  class="rounded-circle"
+                  style="width: 100px; height: 100px; object-fit: cover;"
+                  @error="handleImageError"
+                />
+                <p class="text-muted small mt-2">Foto del padrón</p>
+              </div>
+
               <div class="mb-3">
                 <label for="name" class="form-label">Nombre</label>
                 <input
@@ -161,6 +209,7 @@
                   id="name"
                   v-model="form.name"
                   required
+                  :readonly="nombreReadonly"
                 />
               </div>
               <div class="mb-3">
@@ -198,8 +247,10 @@
               <div class="mb-3">
                 <label for="type" class="form-label">Tipo de Usuario</label>
                 <select class="form-select" id="type" v-model="form.type" required>
-                  <option value="1">Administrador</option>
-                  <option value="2">Invitado</option>
+                  <option v-if="currentUserType === 1" value="1">Administrador</option>
+                  <option v-if="currentUserType === 1" value="4">Candidato</option>
+                  <option value="3">Coordinador</option>
+                  <option v-if="currentUserType === 1" value="2">Invitado</option>
                 </select>
               </div>
               <div class="modal-footer">
@@ -281,6 +332,222 @@
         </div>
       </div>
     </div>
+
+    <!-- Modal de Permisos -->
+    <div
+      class="modal fade"
+      id="permissionsModal"
+      tabindex="-1"
+      aria-hidden="true"
+      ref="permissionsModal"
+    >
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <fa icon="shield-alt" /> Editar Permisos - {{ selectedUser ? selectedUser.name : '' }}
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div v-if="permissions">
+              <h6 class="text-primary mb-3"><i class="bi bi-people-fill"></i> Permisos de Votantes</h6>
+              <div class="row mb-4">
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_view_votantes"
+                      id="can_view_votantes"
+                    >
+                    <label class="form-check-label" for="can_view_votantes">
+                      Ver votantes
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_add_votantes"
+                      id="can_add_votantes"
+                    >
+                    <label class="form-check-label" for="can_add_votantes">
+                      Agregar votantes
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_edit_votantes"
+                      id="can_edit_votantes"
+                    >
+                    <label class="form-check-label" for="can_edit_votantes">
+                      Editar votantes
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_delete_votantes"
+                      id="can_delete_votantes"
+                    >
+                    <label class="form-check-label" for="can_delete_votantes">
+                      Eliminar votantes
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <h6 class="text-primary mb-3"><i class="bi bi-person-badge-fill"></i> Permisos de Usuarios</h6>
+              <div class="row mb-4">
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_view_users"
+                      id="can_view_users"
+                    >
+                    <label class="form-check-label" for="can_view_users">
+                      Ver usuarios
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_add_users"
+                      id="can_add_users"
+                    >
+                    <label class="form-check-label" for="can_add_users">
+                      Crear usuarios
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_edit_users"
+                      id="can_edit_users"
+                    >
+                    <label class="form-check-label" for="can_edit_users">
+                      Editar usuarios
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_delete_users"
+                      id="can_delete_users"
+                    >
+                    <label class="form-check-label" for="can_delete_users">
+                      Eliminar usuarios
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <h6 class="text-primary mb-3"><i class="bi bi-graph-up"></i> Permisos de Reportes</h6>
+              <div class="row mb-4">
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_view_reports"
+                      id="can_view_reports"
+                    >
+                    <label class="form-check-label" for="can_view_reports">
+                      Ver reportes
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_export_data"
+                      id="can_export_data"
+                    >
+                    <label class="form-check-label" for="can_export_data">
+                      Exportar datos
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <h6 class="text-primary mb-3"><i class="bi bi-star-fill"></i> Permisos Especiales</h6>
+              <div class="row">
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_view_all_votantes"
+                      id="can_view_all_votantes"
+                    >
+                    <label class="form-check-label" for="can_view_all_votantes">
+                      Ver todos los votantes
+                    </label>
+                  </div>
+                </div>
+                <div class="col-md-6 mb-2">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      v-model="permissions.can_manage_coordinadores"
+                      id="can_manage_coordinadores"
+                    >
+                    <label class="form-check-label" for="can_manage_coordinadores">
+                      Gestionar coordinadores
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="updatePermissions"
+            >
+              <fa icon="save" /> Guardar Permisos
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -306,12 +573,14 @@ export default {
       perPage: 10,
       isEditMode: false,
       selectedUser: null,
+      currentUserType: null,
       form: {
         name: "",
         email: "",
+        cedula: "",
         password: "",
         password_confirmation: "",
-        type: 2,
+        type: 3,  // Por defecto dirigente para candidatos
       },
       passwordForm: {
         password: "",
@@ -319,18 +588,35 @@ export default {
       },
       userModal: null,
       changePasswordModal: null,
+      permissionsModal: null,
+      cedulaMessage: "",
+      cedulaMessageClass: "",
+      fotoPreview: null,
+      nombreReadonly: false,
+      permissions: null,
     };
   },
   mounted() {
     this.userModalElement = document.getElementById('userModal');
     this.changePasswordModalElement = document.getElementById('changePasswordModal');
-    
+    this.permissionsModalElement = document.getElementById('permissionsModal');
+
     this.userModal = new Modal(this.userModalElement);
     this.changePasswordModal = new Modal(this.changePasswordModalElement);
-    
+    this.permissionsModal = new Modal(this.permissionsModalElement);
+
+    this.getCurrentUser();
     this.fetchUsers();
   },
   methods: {
+    async getCurrentUser() {
+      try {
+        const response = await axios.get('/user');
+        this.currentUserType = parseInt(response.data.type);
+      } catch (error) {
+        console.error('Error getting current user:', error);
+      }
+    },
     fetchUsers(page = 1) {
       const params = {
         page: page,
@@ -342,12 +628,19 @@ export default {
         Object.entries(params).filter(([_, v]) => v !== null)
       );
 
-      axios.get("/api/users", { params: cleanParams })
+      console.log('Fetching users with params:', cleanParams);
+
+      axios.get("/users", { params: cleanParams })
         .then((response) => {
+          console.log('Users response:', response.data);
           this.users = response.data;
         })
         .catch((error) => {
-          console.error(error);
+          console.error('Error fetching users:', error);
+          if (error.response) {
+            console.error('Response data:', error.response.data);
+            console.error('Response status:', error.response.status);
+          }
           this.showError("Error al cargar los usuarios");
         });
     },
@@ -377,7 +670,7 @@ export default {
       this.changePasswordModal.show();
     },
     createUser() {
-      axios.post("/api/users", this.form)
+      axios.post("/users", this.form)
         .then((response) => {
           this.showSuccess("Usuario creado exitosamente");
           this.userModal.hide();
@@ -394,7 +687,7 @@ export default {
         });
     },
     updateUser() {
-      axios.put(`/api/users/${this.selectedUser.id}`, this.form)
+      axios.put(`/users/${this.selectedUser.id}`, this.form)
         .then((response) => {
           this.showSuccess("Usuario actualizado exitosamente");
           this.userModal.hide();
@@ -411,7 +704,7 @@ export default {
         });
     },
     changePassword() {
-      axios.post(`/api/users/${this.selectedUser.id}/change-password`, this.passwordForm)
+      axios.post(`/users/${this.selectedUser.id}/change-password`, this.passwordForm)
         .then((response) => {
           this.showSuccess("Contraseña cambiada exitosamente");
           this.changePasswordModal.hide();
@@ -443,7 +736,7 @@ export default {
       });
     },
     deleteUser(user) {
-      axios.delete(`/api/users/${user.id}`)
+      axios.delete(`/users/${user.id}`)
         .then((response) => {
           this.showSuccess("Usuario eliminado exitosamente");
           this.fetchUsers();
@@ -457,10 +750,55 @@ export default {
       this.form = {
         name: "",
         email: "",
+        cedula: "",
         password: "",
         password_confirmation: "",
-        type: 2,
+        type: this.currentUserType === 4 ? 3 : 2,
       };
+      this.cedulaMessage = "";
+      this.cedulaMessageClass = "";
+      this.fotoPreview = null;
+      this.nombreReadonly = false;
+    },
+    async buscarPorCedula() {
+      if (!this.form.cedula || this.form.cedula.length < 11) {
+        this.showError("Por favor ingrese una cédula válida de 11 dígitos");
+        return;
+      }
+
+      try {
+        const response = await axios.post('/users/search-cedula', {
+          cedula: this.form.cedula
+        });
+
+        if (response.data.padron) {
+          this.form.name = response.data.padron.nombre_completo;
+          this.nombreReadonly = true;
+          this.cedulaMessage = "Datos encontrados en el padrón";
+          this.cedulaMessageClass = "text-success";
+
+          if (response.data.has_photo) {
+            // La foto se cargará cuando se guarde el usuario
+            this.fotoPreview = `/api/users/photo-temp/${this.form.cedula}?t=${Date.now()}`;
+            console.log('Photo URL set:', this.fotoPreview);
+          } else {
+            this.fotoPreview = null;
+          }
+        }
+      } catch (error) {
+        if (error.response && error.response.status === 422) {
+          this.cedulaMessage = error.response.data.error;
+          this.cedulaMessageClass = "text-danger";
+          if (error.response.data.user) {
+            this.showError(`Ya existe un usuario con esta cédula: ${error.response.data.user.name}`);
+          }
+        } else if (error.response && error.response.status === 404) {
+          this.cedulaMessage = "Cédula no encontrada en el padrón";
+          this.cedulaMessageClass = "text-warning";
+        } else {
+          this.showError("Error al buscar la cédula");
+        }
+      }
     },
     showSuccess(message) {
       Swal.fire({
@@ -477,6 +815,70 @@ export default {
         title: 'Error',
         text: message,
       });
+    },
+    getUserTypeName(type) {
+      const types = {
+        1: 'Administrador',
+        2: 'Invitado',
+        3: 'Coordinador',
+        4: 'Candidato'
+      };
+      return types[type] || 'Usuario';
+    },
+    getUserTypeBadgeClass(type) {
+      const classes = {
+        1: 'bg-danger',
+        2: 'bg-secondary',
+        3: 'bg-primary',
+        4: 'bg-success'
+      };
+      return classes[type] || 'bg-secondary';
+    },
+    getUserTypeIcon(type) {
+      const icons = {
+        1: 'bi-shield-lock',
+        2: 'bi-person',
+        3: 'bi-people',
+        4: 'bi-star-fill'
+      };
+      return icons[type] || 'bi-person';
+    },
+    handleImageError() {
+      console.log('Error loading image, using default');
+      this.fotoPreview = null;
+    },
+    showPermissionsModal(user) {
+      this.selectedUser = user;
+      // Cargar permisos actuales del usuario
+      this.permissions = {
+        can_view_votantes: user.can_view_votantes ?? true,
+        can_add_votantes: user.can_add_votantes ?? true,
+        can_edit_votantes: user.can_edit_votantes ?? true,
+        can_delete_votantes: user.can_delete_votantes ?? true,
+        can_view_users: user.can_view_users ?? false,
+        can_add_users: user.can_add_users ?? false,
+        can_edit_users: user.can_edit_users ?? false,
+        can_delete_users: user.can_delete_users ?? false,
+        can_view_reports: user.can_view_reports ?? false,
+        can_export_data: user.can_export_data ?? false,
+        can_view_all_votantes: user.can_view_all_votantes ?? false,
+        can_manage_coordinadores: user.can_manage_coordinadores ?? false,
+      };
+      this.permissionsModal.show();
+    },
+    async updatePermissions() {
+      try {
+        const response = await axios.post(`/users/${this.selectedUser.id}/permissions`, {
+          permissions: this.permissions
+        });
+
+        this.showSuccess('Permisos actualizados exitosamente');
+        this.permissionsModal.hide();
+        this.fetchUsers();
+      } catch (error) {
+        console.error(error);
+        this.showError('Error al actualizar permisos');
+      }
     }
   },
 };

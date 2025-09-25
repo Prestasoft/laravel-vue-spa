@@ -4,6 +4,9 @@ import router from '~/router'
 import i18n from '~/plugins/i18n'
 import App from '~/components/App'
 
+// Importar Bootstrap JavaScript
+import 'bootstrap/dist/js/bootstrap.bundle.min.js'
+
 import '~/plugins'
 import '~/components'
 

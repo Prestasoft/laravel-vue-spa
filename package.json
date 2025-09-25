@@ -3,7 +3,9 @@
   "scripts": {
     "dev": "mix watch --hot",
     "watch": "mix watch",
+    "watch-win": "set NODE_OPTIONS=--openssl-legacy-provider && mix watch",
     "build": "mix --production",
+    "build-win": "set NODE_OPTIONS=--openssl-legacy-provider && mix --production",
     "eslint": "eslint --fix --ext .js,.vue resources/js"
   },
   "dependencies": {

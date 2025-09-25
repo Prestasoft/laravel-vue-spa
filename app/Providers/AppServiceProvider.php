@@ -18,6 +18,11 @@ class AppServiceProvider extends ServiceProvider
         if ($this->app->runningUnitTests()) {
             Schema::defaultStringLength(191);
         }
+
+        // Forzar HTTPS en producción
+        if (config('app.env') === 'production' || config('app.env') === 'local') {
+            \URL::forceScheme('https');
+        }
     }
 
     /**

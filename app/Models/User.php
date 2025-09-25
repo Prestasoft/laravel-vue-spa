@@ -24,7 +24,10 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
      * @var array
      */
     protected $fillable = [
-        'name', 'email', 'password', 'type'
+        'name', 'email', 'cedula', 'password', 'type', 'candidato_id',
+        'can_view_votantes', 'can_add_votantes', 'can_edit_votantes', 'can_delete_votantes',
+        'can_view_users', 'can_add_users', 'can_edit_users', 'can_delete_users',
+        'can_view_reports', 'can_export_data', 'can_view_all_votantes', 'can_manage_coordinadores'
     ];
 
     /**
@@ -44,6 +47,18 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'can_view_votantes' => 'boolean',
+        'can_add_votantes' => 'boolean',
+        'can_edit_votantes' => 'boolean',
+        'can_delete_votantes' => 'boolean',
+        'can_view_users' => 'boolean',
+        'can_add_users' => 'boolean',
+        'can_edit_users' => 'boolean',
+        'can_delete_users' => 'boolean',
+        'can_view_reports' => 'boolean',
+        'can_export_data' => 'boolean',
+        'can_view_all_votantes' => 'boolean',
+        'can_manage_coordinadores' => 'boolean',
     ];
 
     /**
@@ -57,10 +72,49 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
 
     const TYPE_ADMIN = 1;
     const TYPE_GUEST = 2;
+    const TYPE_COORDINADOR = 3;
+    const TYPE_CANDIDATO = 4;
 
     public function isAdmin()
     {
-        return $this->type === self::TYPE_ADMIN;
+        return $this->type == self::TYPE_ADMIN || $this->type == '1';
+    }
+
+    public function isCoordinador()
+    {
+        return $this->type == self::TYPE_COORDINADOR || $this->type == '3';
+    }
+
+    // Mantener método legacy para compatibilidad
+    public function isDirigente()
+    {
+        return $this->isCoordinador();
+    }
+
+    public function isGuest()
+    {
+        return $this->type == self::TYPE_GUEST || $this->type == '2';
+    }
+
+    public function isCandidato()
+    {
+        return $this->type == self::TYPE_CANDIDATO || $this->type == '4';
+    }
+
+    public function getTypeNameAttribute()
+    {
+        switch($this->type) {
+            case self::TYPE_ADMIN:
+                return 'Administrador';
+            case self::TYPE_COORDINADOR:
+                return 'Coordinador';
+            case self::TYPE_GUEST:
+                return 'Invitado';
+            case self::TYPE_CANDIDATO:
+                return 'Candidato';
+            default:
+                return 'Usuario';
+        }
     }
 
     /**
@@ -70,10 +124,30 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
      */
     public function getPhotoUrlAttribute()
     {
+        // Si tiene cédula, usar foto del padrón
+        if ($this->cedula) {
+            return '/api/users/photo/' . $this->id;
+        }
+
         return vsprintf('https://www.gravatar.com/avatar/%s.jpg?s=200&d=%s', [
             md5(strtolower($this->email)),
             $this->name ? urlencode("https://ui-avatars.com/api/$this->name") : 'mp',
         ]);
+    }
+
+    /**
+     * Obtener foto desde el padrón
+     */
+    public function getFotoFromPadron()
+    {
+        if (!$this->cedula) return null;
+
+        $foto = \DB::connection('sqlsrv_db2')
+            ->table('FOTOS_PRM_PRM')
+            ->where('Cedula', $this->cedula)
+            ->first();
+
+        return $foto ? $foto->Imagen : null;
     }
 
     /**
@@ -84,6 +158,40 @@ class User extends Authenticatable implements JWTSubject //, MustVerifyEmail
     public function oauthProviders()
     {
         return $this->hasMany(OAuthProvider::class);
+    }
+
+    /**
+     * Get the votantes for the dirigente.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function votantes()
+    {
+        return $this->hasMany(Votante::class, 'dirigente_id');
+    }
+
+    /**
+     * Relación con coordinadores (para candidatos)
+     */
+    public function coordinadores()
+    {
+        return $this->hasMany(User::class, 'candidato_id')
+            ->where('type', self::TYPE_COORDINADOR);
+    }
+
+    // Mantener método legacy para compatibilidad
+    public function dirigentes()
+    {
+        return $this->coordinadores();
+    }
+
+    /**
+     * Relación con candidato (para coordinadores)
+     */
+    public function candidato()
+    {
+        return $this->belongsTo(User::class, 'candidato_id')
+            ->where('type', self::TYPE_CANDIDATO);
     }
 
     /**

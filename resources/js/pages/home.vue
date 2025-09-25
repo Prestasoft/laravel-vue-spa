@@ -145,7 +145,7 @@ export default {
       this.foto = null;
 
       try {
-        const response = await axios.get("/api/search", {
+        const response = await axios.get("/search", {
           params: { cedula: this.cedula },
         });
         this.padron = response.data.padron;

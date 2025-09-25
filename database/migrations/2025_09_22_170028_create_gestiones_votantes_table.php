@@ -22,7 +22,7 @@ class CreateGestionesVotantesTable extends Migration
             $table->timestamp('fecha')->useCurrent();
 
             $table->foreign('votante_id')->references('id')->on('votantes')->onDelete('cascade');
-            $table->foreign('dirigente_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('dirigente_id')->references('id')->on('users')->onDelete('no action');
             $table->index(['votante_id', 'fecha']);
         });
     }

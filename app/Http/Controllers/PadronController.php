@@ -35,6 +35,7 @@ class PadronController extends Controller
                 ->where('p.Cedula', $cedula)
                 ->select([
                     'p.*',
+                    'p.IdColegio as colegio_id',
                     'nac.Descripcion as nacionalidad',
                     'sex.Descripcion as sexo',
                     'ec.Descripcion as estado_civil',

@@ -11,7 +11,7 @@ class ColegioController extends Controller
     {
         $colegios = DB::connection('sqlsrv_db1')
             ->table('Colegio')
-            ->select('IDColegio as id', 'Descripcion as nombre', 'Direccion as direccion')
+            ->select('IDColegio as id', 'Descripcion as nombre')
             ->orderBy('Descripcion')
             ->get();
 
